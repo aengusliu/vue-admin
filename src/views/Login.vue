@@ -10,11 +10,11 @@
             </ul>
             <!-- 表单内容 -->
             <div>
-                <el-form :model="ruleForm" :size="medium" status-icon :rules="rules" ref="ruleForm">
+                <el-form :model="ruleForm" size="medium" status-icon :rules="rules" ref="ruleForm">
 
-                    <el-form-item prop="username" class="item-form">
+                    <el-form-item prop="email" class="item-form">
                         <label>邮箱</label>
-                        <el-input type="text" v-model="ruleForm.username" autocomplete="off" clearable></el-input>
+                        <el-input v-model="ruleForm.email" autocomplete="off" clearable></el-input>
                     </el-form-item>
 
                     <el-form-item prop="password"  class="item-form">
@@ -27,11 +27,11 @@
                         <el-input type="password" v-model="ruleForm.Rpassword" autocomplete="off" minlength="6" maxlength="18" clearable show-password></el-input>
                     </el-form-item>
 
-                    <el-form-item prop="code" class="item-form1">
+                    <el-form-item prop="check" class="item-form1">
                         <label>验证码</label> 
                         <el-row :gutter="11">
                             <el-col :span="15">
-                                <el-input v-model.number="ruleForm.code" minlength="6" maxlength="6" clearable></el-input>
+                                <el-input v-model.number="ruleForm.check" minlength="6" maxlength="6" clearable></el-input>
                             </el-col>
                             <el-col :span="9">
                                 <el-button type="success" style="width: 100%">获取验证码</el-button>
@@ -50,127 +50,190 @@
 
 <script>
 // 引入接口请求函数
-import { stripscript, qaq } from '@/utils/validate';
-
+import { stripscript, qaq } from '../utils/validate';
+// 引入 reactive 和 ref
+import { isRef, onMounted, reactive, ref, toRefs } from "vue";
 export default {
     name: "Login",
     components: {},
-    data() {
-        // 验证用户名为邮箱 
-        var validateUsername = (rule, value, callback) => {
-            // 邮箱验证的正则表达式
-            let reg = /^([a-zA-Z]|[0-9])(\w|\-)+@[a-zA-Z0-9]+\.([a-zA-Z]{2,4})$/;
-            // value为输入的值
-            if (value === '') {                     // 首先验证输入的值是否为空
-                callback(new Error('请输入用户名'));
-            } else if(!reg.test(value)) {           // 其次验证输入值的格式是否符合正则表达式要求
-                callback(new Error('用户名格式有误'));
-            } else {                                // 如果正确输入了一个邮箱，则验证通过
+    // 新特性1：setup函数
+    // 其内部可以存放data数据、生命周期以及自定义的函数
+    // setup函数会在创建组件实例时调用
+    setup(props, context) {
+
+        // 验证邮箱
+        const validateEmail = (rule, value, callback) => {
+            let val = /^\w+([-+.]\w+)*@\w+([-.]\w+)*\.\w+([-.]\w+)*$/; /*首先给出验证邮箱的正则表达式*/
+            if (value === '') {                     /*判断输入框内部是否有内容*/
+                callback(new Error('请输入邮箱'));
+            } else if(!val.test(value)){            /*然后判断输入的内容是否符合邮箱格式*/
+                callback(new Error('邮箱格式有误'));
+            }else {
                 callback();
             }
         };
-        // 验证密码格式
-        var validatePassword = (rule, value, callback) => {
-            // 过滤多余字符
-            this.ruleForm.password = stripscript(value);
-            value=this.ruleForm.password;
-            // console.log(stripscript(value))
-            let reg = /^[a-zA-Z]\w{5,17}$/;
+        // 验证密码（设置为6-18位的强密码）
+        // 强密码：必须包含大小写字母和数字的组合，不能使用特殊字符，长度在6-18之间
+        const validatePassword = (rule, value, callback) => {
+            ruleForm.password = stripscript(value);
+            value = ruleForm.password;
+            let val = /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{6,18}$/;  /*首先给出验证强密码的正则表达式*/
             if (value === '') {
                 callback(new Error('请输入密码'));
-            } else if (!reg.test(value)) {
-                callback(new Error('密码格式有误（以字母开头，长度在6-18之间，只能包含字母、数字和下划线）'));
+            } else if (!val.test(value)) {
+                callback(new Error('密码格式有误!'));
             } else {
                 callback();
             }
         };
-        // 第二次输出密码
-        // 验证密码格式
-        var validateRPassword = (rule, value, callback) => {
-            // 过滤多余字符
-            this.ruleForm.Rpassword = stripscript(value);
-            value=this.ruleForm.Rpassword;
-            // console.log(stripscript(value))
-            let reg = /^[a-zA-Z]\w{5,17}$/;
+        // 注册时需要输入两次密码
+        const validateRPassword = (rule, value, callback) => {
             if (value === '') {
                 callback(new Error('请再次输入密码'));
-            } else if (!reg.test(value)) {
-                callback(new Error('密码格式有误（以字母开头，长度在6-18之间，只能包含字母、数字和下划线）'));
-            } else if(this.ruleForm.password !== this.ruleForm.Rpassword){
-                callback(new Error('两次密码输入不一致，请重新输入'));
-            }else {
+            } else if (value !== ruleForm.password) {
+                callback(new Error('两次密码不一致'));
+            } else {
                 callback();
             }
         };
-        // 验证验证码
-        var checkCode = (rule, value, callback) => {
-            let reg = /^\d{6}$/;
-            if (!value) {
+        // 验证验证码（6位数字）
+        const checkCheck = (rule, value, callback) => {
+            let val = /^\d{6}$/;
+            if (value === '') {
                 callback(new Error('请输入验证码'));
-            }else if(!reg.test(value)) {
-                callback(new Error('验证码格式有误（为六位数字）'));
-            }else {
+            } else if (!val.test(value)) {
+                callback(new Error('验证码格式有误!'));
+            } else {
                 callback();
             }
         };
-        return {
-            tabMenu: [
-                {txt: '登录', current: true, state: 'login'},
-                {txt: '注册', current: false, state: 'register'}
-            ],
-            register: false,
-            isActive: true,
-            ruleForm: {
-                username: '',
+        
+        // 新特性2：reactive
+        // 通过reactive可以声明单一对象，即引用数据类型【PS:需要导入js函数】
+        let tabMenu = reactive([
+            {txt: '登录', current: true, state: 'login'},
+            {txt: '注册', current: false, state: 'register'}
+        ]);
+        // console.log(tabMenu[0].txt);
+
+        // const声明的变量是只读的，不可更改内容
+        // 因为ruleForm内容会变化，因此使用let来定义
+        let ruleForm = reactive(
+            {
+                email: '',
                 password: '',
                 Rpassword: '',
-                code: ''
-            },
-            rules: {
-                username: [
-                    { validator: validateUsername, trigger: 'blur' }
+                check: ''
+            }
+        );
+
+        const rules = reactive(
+            {
+                email: [
+                    {validator: validateEmail, trigger: 'blur'}
                 ],
                 password: [
-                    { validator: validatePassword, trigger: 'blur' }
+                    {validator: validatePassword, trigger: 'blur'}
                 ],
                 Rpassword: [
-                    { validator: validateRPassword, trigger: 'blur' }
+                    {validator: validateRPassword, trigger: 'blur'}
                 ],
-                code: [
-                    { validator: checkCode, trigger: 'blur' }
+                check: [
+                    {validator: checkCheck, trigger: 'blur'}
                 ]
             }
-        }
-    },    
-    // 在模板渲染成html前调用，通常用于初始化某些属性值，用于后面渲染视图的操作
-    created(){},
-    // 在模板渲染成html后调用，初始化页面完成后，可以对html的DOM节点进行相应操作
-    mounted(){},
-    methods: {
+        ); 
+        // 新特性3：ref
+        // 用于声明 基础数据类型 的变量【PS:需要导入】
+        // const testRef = ref('qaq');
+        // // 注意：获取ref定义的基本数据类型的变量的值，需要通过 变量名.value的方式
+        // console.log(testRef.value);
+
+        let register = ref(false);
+
+        // 新特性4：isRef
+        // 用于判定某变量是否为ref定义的基本数据类型【PS:需要导入】
+        // console.log(isRef(testRef) ? 'it is defined by ref' : 'not defined by ref');
+
+        // 新特性5：toRefs
+        // 作用：将reactive定义的引用类型对象转化为普通基本数据类型
+        // const letters = reactive({  // 首先通过reactive定义一个引用数据类型的对象
+        //     a: 1,
+        //     b: 2,
+        // })
+        // const newLetters = toRefs(letters); // 其次通过toRefs将引用数据类型转换为基本数据类型
+        // console.log(newLetters.a.value);  // 注意到，如果只是通过newLetters.a是无法访问到原来a的值的
+        // 注：一般用于解构（定义函数，调用函数）
+        // function decompose() {
+        //     const days = reactive({
+        //         jintian: '周五',
+        //         zuotian: '周四',
+        //         minghtian: '周六'
+        //     });
+        //     return toRefs(days);
+        // }
+        // const {jintian, zuotian, minghtian} = decompose();
+        // console.log(zuotian.value);
+
+        /**
+         * 自定义声明方法（对应methods中的内容）
+         */
+
         // 登录注册切换时的显示
-        toggleMenu(data) {
-            this.tabMenu.forEach((element,index) => {
+        // 方法名为toggleMenu，形参为data
+        const toggleMenu = (data => {
+            tabMenu.forEach((element,index) => {
                 element.current=false; 
-                this.ruleForm = {};
+                ruleForm = {
+                    email: '',
+                    password: '',
+                    Rpassword: '',
+                    check: ''
+                };
             });
             if (data.state === 'login'){
-                this.register = false;
+                register.value = false;
             }else {
-                this.register = true;
+                register.value = true;
             }
             // 高光
             data.current=true;
-        },
-        submitForm(formName) {
-        this.$refs[formName].validate((valid) => {
-          if (valid) {
-            alert('submit!');
-          } else {
-            console.log('error submit!!');
-            return false;
-          }
-        });
-        },
+        })
+
+        // 用于点击登录按钮时的验证
+        // 方法名为submitForm，形参为formName
+        const submitForm = (formName => {
+            context.refs[formName].validate((valid) => {
+                if (valid) {
+                    alert('submit!');
+                } else {
+                    console.log('error submit!!');
+                    return false;
+                }
+            })
+        })
+        
+        /**
+         * 生命周期
+         */
+        // 1.挂载完成后执行
+        onMounted(() => {
+
+        })
+
+        // 自定义的东西都要return出去
+        return {
+            tabMenu,
+            ruleForm,
+            register,
+            rules,
+            validateEmail,
+            validatePassword,
+            validateRPassword,
+            checkCheck,
+            toggleMenu,
+            submitForm
+        }
     }
 }
 </script>
